@@ -1,0 +1,296 @@
+#First, import ASCII file:
+import numpy as np
+Golm_ALS2018_clip1_XYZI = np.genfromtxt('D:/Lidar/Project/clips/wall_clip3.csv', delimiter=',')
+import laspy
+
+#import matplotlib as mpl
+##mpl.use('Agg')
+#import matplotlib.pyplot as plt
+#import matplotlib.lines as mlines
+#import matplotlib.dates as mdates
+#import matplotlib.patches as mpatches
+#import matplotlib.cm as cm
+#from mpl_toolkits.mplot3d import Axes3D
+#from laspy.file import File
+#lidar_fn = 'D:/Lidar/Lab06/Lab6/classwork/q1/clip01/airborne_lidar_RGB_06May2018_CampusGolmEast-clip01.laz'
+#ALS_clip1 = laspy.file.File(lidar_fn, mode="r")
+
+#Second, Generate simple 3D figure
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(Golm_ALS2018_clip1_XYZI[:,0], Golm_ALS2018_clip1_XYZI[:,1],
+Golm_ALS2018_clip1_XYZI[:,2], c='b')
+plt.suptitle('3D display - the individual points of Ground clip')
+ax.set_ylabel('X coordinate', fontsize=10)
+ax.set_xlabel('Y coordinate', fontsize=10)
+ax.set_zlabel(r'Z coordinate', fontsize=10, rotation=60)
+plt.grid('on')
+
+#Third, Setup modules for KDTree
+from scipy import spatial
+
+#Find mean of data to identify point as reference point
+ALS_x = Golm_ALS2018_clip1_XYZI[:,0]
+ALS_y = Golm_ALS2018_clip1_XYZI[:,1]
+ALS_z = Golm_ALS2018_clip1_XYZI[:,2]
+ALS_pts = np.dstack( (ALS_x, ALS_y, ALS_z) )
+ALS_pts = ALS_pts.reshape(ALS_pts.shape[1],ALS_pts.shape[2])
+
+#get mean of X and Y and Z fields
+ALS_x_mean = ALS_pts[:,0].mean()
+ALS_y_mean = ALS_pts[:,1].mean()
+ALS_z_mean = ALS_pts[:,2].mean()
+ALS_xyz_mean_pt = [ALS_x_mean, ALS_y_mean, ALS_z_mean]
+
+##find closest point for a specific coordinate
+#ALS_pts[ spatial.KDTree(ALS_pts).query(ALS_xyz_mean_pt)[1] ]
+tree = spatial.KDTree(ALS_pts)
+
+#Find closest point to mean point:
+distance, index = tree.query(ALS_xyz_mean_pt)
+index_25cm = tree.query_ball_point(ALS_xyz_mean_pt, 0.25)
+
+#Obtain coordinates of closest point:
+ALS_pts[index]
+
+#Plot mean point and closest point
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_z, c='y', s=0.3, label='All points')
+ax.scatter(ALS_xyz_mean_pt[0], ALS_xyz_mean_pt[1], ALS_xyz_mean_pt[2], c='b', s=60, label='Mean Point')
+ax.scatter(ALS_pts[index][0], ALS_pts[index][1], ALS_pts[index][2], c='r', s=1, label='clustered')
+plt.suptitle('3D display - Mean Point of Ground clip')
+ax.set_ylabel('X coordinate', fontsize=10)
+ax.set_xlabel('Y coordinate', fontsize=10)
+ax.set_zlabel(r'Z coordinate', fontsize=10, rotation=60)
+ax.legend(loc='upper right')
+plt.grid('on')
+
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_z, c='y', s=0.3,  label='All points')
+ax.scatter(ALS_xyz_mean_pt[0], ALS_xyz_mean_pt[1], ALS_xyz_mean_pt[2], c='b', s=60, label='Mean Point')
+ax.scatter(ALS_pts[index_25cm][:,0], ALS_pts[index_25cm][:,1], ALS_pts[index_25cm][:,2], c='r', s=10, label='25 cm dist')
+plt.suptitle('3D display - closest point to mean point 25cm of Ground clip')
+ax.set_ylabel('X coordinate', fontsize=10)
+ax.set_xlabel('Y coordinate', fontsize=10)
+ax.set_zlabel(r'Z coordinate', fontsize=10, rotation=60)
+ax.legend(loc='upper right')
+plt.grid('on')
+
+#Plot mean point and 12 closest point
+distances, indices = tree.query(ALS_xyz_mean_pt, k=100)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_z, c='y', s=0.3, label='All points')
+ax.scatter(ALS_xyz_mean_pt[0], ALS_xyz_mean_pt[1], ALS_xyz_mean_pt[2], c='b', s=60, label='K = Mean Point')
+ax.scatter(ALS_pts[indices][:,0], ALS_pts[indices][:,1], ALS_pts[indices][:,2], c='r', s=10, label='K 100')
+plt.suptitle('3D display - closest point to K = 100 of Ground clip')
+ax.set_ylabel('X coordinate', fontsize=10)
+ax.set_xlabel('Y coordinate', fontsize=10)
+ax.set_zlabel(r'Z coordinate', fontsize=10, rotation=60)
+ax.legend(loc='upper right')
+plt.grid('on')
+
+
+
+
+
+#Now iterate through all points and get 12 neighboring points
+#Use existing point cloud and calculate mean of point distances for every point in the point cloud
+ALS_tree = spatial.KDTree(ALS_pts)
+#We can use an array to store point location and average point distance of the 12 neighboring points
+ALS_pts_distances = np.empty( (ALS_pts.shape[0], 4) )
+for point_idx in range(len(ALS_pts)):
+    distances_k12, indices_k12 = ALS_tree.query(ALS_pts[point_idx], k=18)
+    distances_mean = distances_k12[1:].mean()
+    ALS_pts_distances[point_idx,:] = [ALS_pts[point_idx][0], ALS_pts[point_idx][1], ALS_pts[point_idx][2],  distances_mean]
+    
+#Now plot results with mean point density as color
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ALS_ax = ax.scatter(ALS_pts_distances[:,0], ALS_pts_distances[:,1], ALS_pts_distances[:,2], c=ALS_pts_distances[:,3], s=10)
+plt.grid('on')
+cbar = plt.colorbar(ALS_ax)
+cbar.set_label('mean pt distance for k=18 [m]', rotation=90)
+
+## If you want to calculate point density, use the following approach:
+ALS_pts_distances = np.empty( (ALS_pts.shape[0], 5) )
+for point_idx in range(len(ALS_pts)):
+    distances_k12, indices_k12 = ALS_tree.query(ALS_pts[point_idx], k=18)
+    distances_mean = distances_k12[1:].mean()
+    sphere_volume = 4 / 3 * np.pi * max(distances_k12)
+    sphere_density = sphere_volume / 12    
+    ALS_pts_distances[point_idx,:] = [ALS_pts[point_idx][0], ALS_pts[point_idx][1], ALS_pts[point_idx][2],  distances_mean, sphere_density]
+    
+#Now plot results with mean point distance as color
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ALS_ax = ax.scatter(ALS_pts_distances[:,0], ALS_pts_distances[:,1], ALS_pts_distances[:,2], c=ALS_pts_distances[:,3], s=10)
+plt.grid('on')
+cbar = plt.colorbar(ALS_ax)
+cbar.set_label('mean pt distance for k=18 [m]', rotation=90)
+
+#Now plot results with point density as color
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ALS_ax = ax.scatter(ALS_pts_distances[:,0], ALS_pts_distances[:,1], ALS_pts_distances[:,2], c=ALS_pts_distances[:,4], s=10)
+plt.grid('on')
+cbar = plt.colorbar(ALS_ax)
+cbar.set_label('mean pt density [#/m^3]', rotation=90)
+
+
+
+        
+        
+        
+#IFFY
+
+from numpy.linalg import svd
+def planeFit(points):
+    """
+    p, n = planeFit(points)
+    Given an array, points, of shape (d,...)
+    representing points in d-dimensional space,
+    fit an d-dimensional plane to the points.
+    Return a point, p, on the plane (the point-cloud centroid),
+    and the normal, n.
+    source = https://stackoverflow.com/questions/12299540/planefitting-to-4-or-more-xyz-points
+    """
+    points = np.reshape(points, (np.shape(points)[0], -1)) # Collapse trialing dimensions
+    assert points.shape[0] <= points.shape[1], "There are only {} points in {} dimensions.".format(points.shape[1], points.shape[0])
+    ctr = points.mean(axis=1)
+    x = points - ctr[:,np.newaxis]
+    M = np.dot(x, x.T) # Could also use np.cov(x) here.
+    return ctr, svd(M)[0][:,-1]
+
+
+pts = np.dstack( (ALS_x, ALS_y, ALS_z) )
+pts = pts.reshape(pts.shape[1],pts.shape[2])
+center, normal = planeFit(pts.T)
+
+#Perform the fitting with:
+pts = np.dstack((ALS_x, ALS_y, ALS_z))
+pts = pts.reshape(pts.shape[1],pts.shape[2])
+center, normal = planeFit(pts.T)
+
+#Prepare mesh for gridding fit:
+d = -center.dot(normal)
+xx, yy = np.meshgrid(np.linspace(np.nanmin(ALS_x),np.nanmax(ALS_x)),
+np.linspace(np.nanmin(ALS_y),np.nanmax(ALS_y)))
+z = (-normal[0] * xx - normal[1] * yy - d) * 1. /normal[2]
+#and plot the results (both, original X, Y, Z points and fitted plane):
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_z, c='y',label='K = Clip 02 - Model points')
+ax.plot_surface(xx, yy, z)
+ax.set_ylabel('X coordinate', fontsize=10)
+ax.set_xlabel('Y coordinate', fontsize=10)
+ax.set_zlabel(r'Z coordinate', fontsize=10, rotation=60)
+plt.title('Data: Clip03 SFM model')
+ax.legend()
+plt.grid('on')
+
+ALS_detrend = ALS_z - ((-normal[0] * ALS_x - normal[1] * ALS_y - d) * 1. /normal[2])
+
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_detrend, c='k')
+plt.grid('on')
+
+st = np.std(ALS_detrend)
+qr = np.percentile(ALS_detrend, [25, 75])
+
+#Third, Setup modules for KDTree
+from scipy import spatial
+
+#Find mean of data to identify point as reference point
+ALS_x = Golm_ALS2018_clip1_XYZI[:,0]
+ALS_y = Golm_ALS2018_clip1_XYZI[:,1]
+ALS_z = Golm_ALS2018_clip1_XYZI[:,2]
+ALS_pts = np.dstack( (ALS_x, ALS_y, ALS_z) )
+ALS_pts = ALS_pts.reshape(ALS_pts.shape[1],ALS_pts.shape[2])
+
+#get mean of X and Y and Z fields
+ALS_x_mean = ALS_pts[:,0].mean()
+ALS_y_mean = ALS_pts[:,1].mean()
+ALS_z_mean = ALS_pts[:,2].mean()
+ALS_xyz_mean_pt = [ALS_x_mean, ALS_y_mean, ALS_z_mean]
+
+##find closest point for a specific coordinate
+#ALS_pts[ spatial.KDTree(ALS_pts).query(ALS_xyz_mean_pt)[1] ]
+tree = spatial.KDTree(ALS_pts)
+
+#Find closest point to mean point:
+distance, index = tree.query(ALS_xyz_mean_pt)
+index_25cm = tree.query_ball_point(ALS_xyz_mean_pt, 0.02)
+
+#Obtain coordinates of closest point:
+ALS_pts[index]
+
+#Plot mean point and closest point
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_z, c='k', s=2)
+ax.scatter(ALS_xyz_mean_pt[0], ALS_xyz_mean_pt[1], ALS_xyz_mean_pt[2], c='b', s=20)
+ax.scatter(ALS_pts[index][0], ALS_pts[index][1], ALS_pts[index][2], c='r', s=10)
+plt.grid('on')
+
+#Plot mean point and 12 closest point
+distances, indices = tree.query(ALS_xyz_mean_pt, k=12)
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.scatter(ALS_x, ALS_y, ALS_z, c='k', s=2)
+ax.scatter(ALS_xyz_mean_pt[0], ALS_xyz_mean_pt[1], ALS_xyz_mean_pt[2], c='b', s=20)
+ax.scatter(ALS_pts[indices][:,0], ALS_pts[indices][:,1], ALS_pts[indices][:,2], c='r', s=10)
+plt.grid('on')
+
+
+
+#Now iterate through all points and get 12 neighboring points
+#Use existing point cloud and calculate mean of point distances for every point in the point cloud
+ALS_tree = spatial.KDTree(ALS_pts)
+#We can use an array to store point location and average point distance of the 12 neighboring points
+ALS_pts_distances = np.empty( (ALS_pts.shape[0], 4) )
+for point_idx in range(len(ALS_pts)):
+    distances_k12, indices_k12 = ALS_tree.query(ALS_pts[point_idx], k=18)
+    distances_mean = distances_k12[1:].mean()
+    ALS_pts_distances[point_idx,:] = [ALS_pts[point_idx][0], ALS_pts[point_idx][1], ALS_pts[point_idx][2],  distances_mean]
+    
+#Now plot results with mean point density as color
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ALS_ax = ax.scatter(ALS_pts_distances[:,0], ALS_pts_distances[:,1], ALS_pts_distances[:,2], c=ALS_pts_distances[:,3], s=10)
+plt.grid('on')
+cbar = plt.colorbar(ALS_ax)
+cbar.set_label('mean pt distance for k=18 [m]', rotation=90)
+
+## If you want to calculate point density, use the following approach:
+ALS_pts_distances = np.empty( (ALS_pts.shape[0], 5) )
+for point_idx in range(len(ALS_pts)):
+    distances_k12, indices_k12 = ALS_tree.query(ALS_pts[point_idx], k=18)
+    distances_mean = distances_k12[1:].mean()
+    sphere_volume = 4 / 3 * np.pi * max(distances_k12)
+    sphere_density = sphere_volume / 12    
+    ALS_pts_distances[point_idx,:] = [ALS_pts[point_idx][0], ALS_pts[point_idx][1], ALS_pts[point_idx][2],  distances_mean, sphere_density]
+    
+#Now plot results with mean point distance as color
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ALS_ax = ax.scatter(ALS_pts_distances[:,0], ALS_pts_distances[:,1], ALS_pts_distances[:,2], c=ALS_pts_distances[:,3], s=10)
+plt.grid('on')
+cbar = plt.colorbar(ALS_ax)
+cbar.set_label('mean pt distance for k=18 [m]', rotation=90)
+
+#Now plot results with point density as color
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ALS_ax = ax.scatter(ALS_pts_distances[:,0], ALS_pts_distances[:,1], ALS_pts_distances[:,2], c=ALS_pts_distances[:,4], s=10)
+plt.grid('on')
+cbar = plt.colorbar(ALS_ax)
+cbar.set_label('mean pt density [#/m^3]', rotation=90)
